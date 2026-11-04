@@ -109,8 +109,8 @@ public final class MainActivity extends Activity {
         IntentFilter filter = new IntentFilter(permissionAction);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(usbReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        else registerReceiver(usbReceiver, filter);
+        androidx.core.content.ContextCompat.registerReceiver(this, usbReceiver, filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         audio = (AudioManager) getSystemService(AUDIO_SERVICE);
         midi = (MidiManager) getSystemService(MIDI_SERVICE);
         if (audio != null) audio.registerAudioDeviceCallback(audioCallback, handler);

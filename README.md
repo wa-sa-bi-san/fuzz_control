@@ -1,5 +1,5 @@
 # Fuzz Control
-Standalone Android diagnostics for an Apogee Duet 3 and USB/MIDI devices, intended for later private integration into FuzzNug Ultimate.
+Standalone Android diagnostics for an Apogee Duet 3 and USB/MIDI devices, an open-source project with a reusable device library that can later be integrated into FuzzNug Ultimate.
 
 ## Version 0.1.0
 - Lists USB interfaces/endpoints, MIDI 1.0 devices, and Android audio inputs/outputs.
@@ -10,7 +10,7 @@ Standalone Android diagnostics for an Apogee Duet 3 and USB/MIDI devices, intend
 
 ## Install
 Open this repository's **Actions → Build Android APK → latest successful run → Artifacts → fuzz-control-apk** in your phone's browser. Download and unzip the artifact, then open the APK and allow installation from that browser/file manager if Android asks.
-This is a debug-signed development APK. CI uses a generated debug signing key; a future build may require uninstalling the previous app before installing. Stable private signing will be configured later without committing private keys.
+This is a debug-signed development APK. CI uses a generated debug signing key; a future build may require uninstalling the previous app before installing. Stable APK signing will be configured later without committing signing keys.
 
 ## First hardware test
 1. Connect the Duet directly to the phone. Open Fuzz Control and share its report.
@@ -32,3 +32,6 @@ The GitHub workflow installs Gradle; a wrapper is not yet included.
 Next: capture/inspect the Duet 3's actual control protocol using owned hardware and Apogee Control 2, document commands, then prove readback and a reversible control change while audio runs. Do not reuse another Apogee model's command values without verification. Firmware updates and DSP recreation are outside this first version.
 
 Unofficial project; not affiliated with Apogee. Hardware behavior and UI have not yet been tested on a physical phone.
+
+## Open-source contribution
+This repository contains standalone code only: no private FuzzNug source, account credentials, tokens, or signing keys. Released under the MIT License (see LICENSE), allowing reuse and later integration into FuzzNug. No third-party source has been copied into this initial implementation.

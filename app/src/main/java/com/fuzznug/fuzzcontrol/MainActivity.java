@@ -21,7 +21,25 @@ public final class MainActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final String permissionAction="com.fuzznug.fuzzcontrol.USB_PERMISSION";
     private UsbDevice selected;
-    private boolean active,busy,ready;
+    private boolean active,busy,ready,meterBusy,meterFailed;
+    private final List<MeterDisplay> meterDisplays=new ArrayList<>();
+    private final Runnable meterTick=()->pollMeters();
+    private final class MeterDisplay {
+        final int[] words;final TextView label;final ProgressBar[] bars;
+        MeterDisplay(LinearLayout card,int[] words){
+            this.words=words;label=text("Meters: waiting",11);card.addView(label);bars=new ProgressBar[words.length];
+            for(int i=0;i<words.length;i++){ProgressBar bar=new ProgressBar(MainActivity.this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(600);bar.setContentDescription("Signal level "+(i+1));card.addView(bar,new LinearLayout.LayoutParams(-1,dp(8)));bars[i]=bar;}
+            meterDisplays.add(this);
+        }
+        void update(int[] packet){StringBuilder text=new StringBuilder();for(int i=0;i<words.length;i++){
+            int word=packet[words[i]];double db=Duet3MeterPacket.dbfs(word);boolean clip=Duet3MeterPacket.clipped(word);
+            if(i>0)text.append(" / ");text.append(Double.isInfinite(db)?"−∞":String.format(Locale.ROOT,"%.1f",db));if(clip)text.append(" CLIP");
+            bars[i].setProgress((int)Math.round(Math.max(0,Math.min(60,db+60))*10));
+            bars[i].setProgressTintList(android.content.res.ColorStateList.valueOf(clip?Color.rgb(245,94,88):Color.rgb(97,226,183)));
+        }label.setText(text.append(" dBFS").toString());}
+        void unavailable(){label.setText("Meters unavailable");for(ProgressBar bar:bars)bar.setProgress(0);}
+    }
+
     private int generation,tab,recordingSource;
     private int[][] mix=new int[5][4],outputs=new int[2][4];
     private TextView status;
@@ -76,8 +94,9 @@ public final class MainActivity extends Activity {
     private static String db(int wire){int n=Duet3MixerProtocol.decodeDb(wire);return (n>0?"+":"")+n+" dB";}
     private static String pan(int wire){return wire==64?"Center":(wire<64?"L ":"R ")+Math.round(Math.abs(wire-64)*100f/64)+"%";}
     private void render(){
-        if(content==null)return;content.removeAllViews();
+        if(content==null)return;content.removeAllViews();meterDisplays.clear();
         if(tab==0)renderMixer();else if(tab==1)renderOutputs();else renderDevices();
+        if(meterFailed)for(MeterDisplay display:meterDisplays)display.unavailable();
     }
     private void renderMixer(){
         content.addView(text("DIRECT MONITOR MIXER",18));
@@ -87,6 +106,7 @@ public final class MainActivity extends Activity {
             final int ch=i;LinearLayout card=column();panel(card,i==4?Color.rgb(28,47,51):Color.rgb(26,34,48));
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(165),-2);cp.setMargins(0,dp(8),dp(8),dp(8));strips.addView(card,cp);
             TextView name=text(Duet3MixerProtocol.CHANNELS[i],16);name.setTypeface(null,Typeface.BOLD);card.addView(name);
+            new MeterDisplay(card,Duet3MeterPacket.MIXER_WORDS[i]);
             TextView level=text(ready?db(mix[i][0]):"Not read",22);level.setGravity(Gravity.CENTER);card.addView(level);
             if(i<4){
                 TextView p=text(ready?pan(mix[i][1]):"Pan",13);card.addView(p);
@@ -103,7 +123,7 @@ public final class MainActivity extends Activity {
             Button mute=button(card,ready&&mix[i][2]==1?"MUTE ON":"Mute",()->transact("Toggle mute "+Duet3MixerProtocol.CHANNELS[ch],s->s.mixer.toggle(ch==4?0:ch,ch==4?Duet3MixerProtocol.MASTER_MUTE:Duet3MixerProtocol.MUTE)),true);mute.setSelected(ready&&mix[i][2]==1);if(mute.isSelected())mute.setTextColor(Color.rgb(194,54,43));
             if(i<4){Button solo=button(card,ready&&mix[i][3]==1?"SOLO ON":"Solo",()->transact("Toggle solo "+Duet3MixerProtocol.CHANNELS[ch],s->s.mixer.toggle(ch,Duet3MixerProtocol.SOLO)),true);if(ready&&mix[i][3]==1)solo.setTextColor(Color.rgb(161,100,0));}
         }
-        content.addView(text("Faders show device settings after readback. Live audio meters, stereo-link editing and input/DSP settings are not included in this build.",12));
+        content.addView(text("Faders show device settings after readback. Stereo-link editing and input/DSP settings are not included in this build.",12));
     }
     private void renderOutputs(){
         content.addView(text("OUTPUTS & ROUTING",18));
@@ -111,6 +131,7 @@ public final class MainActivity extends Activity {
         for(int i=0;i<2;i++){
             final int out=i;LinearLayout card=column();panel(card,Color.rgb(26,34,48));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(8),0,dp(8));content.addView(card,lp);
             card.addView(text("Output "+(i+1)+(ready?" · -"+outputs[i][0]+" dB":" · not read"),20));
+            new MeterDisplay(card,Duet3MeterPacket.OUTPUT_WORDS[i]);
             button(card,"Source: "+(ready?Duet3MixerProtocol.ROUTES[outputs[i][3]]:"unknown"),()->chooseRoute(out),true);
             LinearLayout levels=row();button(levels,"Quieter · -1 dB",()->transact("Output "+(out+1)+" quieter",s->s.protocol.stepLevel(out,-1)),true);button(levels,"Louder · +1 dB",()->transact("Output "+(out+1)+" louder",s->s.protocol.stepLevel(out,1)),true);card.addView(levels);
             LinearLayout switches=row();button(switches,"Dim: "+(ready?(outputs[i][1]==1?"on":"off"):"?"),()->transact("Output dim "+out,s->s.protocol.toggle(out,Duet3Protocol.DIM)),true);button(switches,"Mono: "+(ready?(outputs[i][2]==1?"on":"off"):"?"),()->transact("Output mono "+out,s->s.protocol.toggle(out,Duet3Protocol.MONO)),true);card.addView(switches);
@@ -138,9 +159,9 @@ public final class MainActivity extends Activity {
             String packet=Arrays.toString(session.readMeterPacket());
             handler.post(()->{if(!isDestroyed())log.append("Raw meter words (unmapped): ").append(packet).append('\n');});
         }),true);
-        button(content,"Share diagnostic report",()->{Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT,"Fuzz Control 0.3.1 diagnostics").putExtra(Intent.EXTRA_TEXT,report+"\nCONTROL LOG\n"+log);startActivity(Intent.createChooser(send,"Share report"));},false);
+        button(content,"Share diagnostic report",()->{Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT,"Fuzz Control 0.4.0 diagnostics").putExtra(Intent.EXTRA_TEXT,report+"\nCONTROL LOG\n"+log);startActivity(Intent.createChooser(send,"Share report"));},false);
         TextView data=text(report,12);data.setTypeface(Typeface.MONOSPACE);data.setTextIsSelectable(true);content.addView(data);
-        content.addView(text("Experimental 0.3.1. USB controls are independently implemented. No Apogee software is bundled. No audio recording or network access.",12));
+        content.addView(text("Experimental 0.4.0. USB controls are independently implemented. No Apogee software is bundled. No audio recording or network access.",12));
     }
     private void connect(){
         if(busy)return;List<UsbDevice> devices=DeviceInventory.usbDevices(this);devices.removeIf(d->!Duet3Usb.matches(d));
@@ -165,13 +186,29 @@ public final class MainActivity extends Activity {
             }catch(IOException|RuntimeException e){message=label+" failed: "+e.getMessage()+". Tap Read to recover; a write may already have applied.";}
             final int rec=nextRecording;final int[][] m=nextMix,o=nextOutputs;final String result=message;final boolean success=ok;
             handler.post(()->{busy=false;if(isDestroyed())return;log.append(result).append('\n');if(success)log.append("Mixer ").append(Arrays.deepToString(m)).append("\nOutputs ").append(Arrays.deepToString(o)).append("\nRecording source ").append(rec).append('\n');if(log.length()>20000)log.delete(0,log.length()-20000);
-                if(!active||token!=generation)return;ready=success;if(success){mix=m;outputs=o;recordingSource=rec;}status.setText(result);render();});
+                if(!active||token!=generation)return;ready=success;if(success){mix=m;outputs=o;recordingSource=rec;meterFailed=false;}status.setText(result);render();scheduleMeters();});
         });
     }
-    private void disconnect(String message){generation++;selected=null;ready=false;status.setText(message);render();}
+    private void scheduleMeters(){handler.removeCallbacks(meterTick);if(active&&ready&&!meterFailed)handler.postDelayed(meterTick,200);}
+    private void pollMeters(){
+        if(!active||!ready||selected==null||meterFailed)return;
+        if(busy||meterBusy||tab==2){scheduleMeters();return;}
+        meterBusy=true;final UsbDevice device=selected;final int token=generation;
+        worker.execute(()->{
+            int[] packet=null;String error=null;
+            try(Duet3Usb session=new Duet3Usb((UsbManager)getSystemService(USB_SERVICE),device)){packet=session.readMeterPacket();}
+            catch(IOException|RuntimeException e){error=e.getMessage();}
+            final int[] data=packet;final String failure=error;
+            handler.post(()->{meterBusy=false;if(isDestroyed()||!active||token!=generation)return;
+                if(failure!=null){meterFailed=true;log.append("Meter polling stopped: ").append(failure).append('\n');for(MeterDisplay meter:meterDisplays)meter.unavailable();}
+                else {for(MeterDisplay meter:meterDisplays)meter.update(data);scheduleMeters();}
+            });
+        });
+    }
+    private void disconnect(String message){generation++;selected=null;ready=false;handler.removeCallbacks(meterTick);status.setText(message);render();}
     private void queueInventory(){handler.removeCallbacks(inventoryRefresh);handler.postDelayed(inventoryRefresh,250);}
     private void refreshInventory(){try{report=DeviceInventory.report(this);}catch(RuntimeException e){report="Inventory unavailable. Reconnect and retry.";}if(tab==2)render();}
     @Override protected void onStart(){super.onStart();active=true;IntentFilter f=new IntentFilter(permissionAction);f.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);f.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);androidx.core.content.ContextCompat.registerReceiver(this,usbReceiver,f,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);audio=(AudioManager)getSystemService(AUDIO_SERVICE);midi=(MidiManager)getSystemService(MIDI_SERVICE);if(audio!=null)audio.registerAudioDeviceCallback(audioCallback,handler);if(midi!=null)midi.registerDeviceCallback(midiCallback,handler);refreshInventory();render();}
-    @Override protected void onStop(){active=false;generation++;ready=false;unregisterReceiver(usbReceiver);if(audio!=null)audio.unregisterAudioDeviceCallback(audioCallback);if(midi!=null)midi.unregisterDeviceCallback(midiCallback);handler.removeCallbacks(inventoryRefresh);super.onStop();}
+    @Override protected void onStop(){active=false;generation++;ready=false;unregisterReceiver(usbReceiver);if(audio!=null)audio.unregisterAudioDeviceCallback(audioCallback);if(midi!=null)midi.unregisterDeviceCallback(midiCallback);handler.removeCallbacks(inventoryRefresh);handler.removeCallbacks(meterTick);super.onStop();}
     @Override protected void onDestroy(){worker.shutdown();super.onDestroy();}
 }

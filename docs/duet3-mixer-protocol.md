@@ -1,6 +1,6 @@
 # Duet 3 mixer: independently recovered protocol
 
-Version 0.3.1 implements hardware mixer levels, pan, mute, solo, master level/mute independent output source selection and recording-source / loopback selection. Static evidence is from the same user-provided Control 2 DSP 1.21.55 installer as the output investigation. None of the proprietary binaries or disassembly dumps are committed. All addresses below are virtual addresses in the x86_64 slice.
+Version 0.4.0 implements hardware mixer levels, pan, mute, solo, master level/mute independent output source selection and recording-source / loopback selection. Static evidence is from the same user-provided Control 2 DSP 1.21.55 installer as the output investigation. None of the proprietary binaries or disassembly dumps are committed. All addresses below are virtual addresses in the x86_64 slice.
 
 Transport: request type 0xc0 for read, 0x40 for write, wValue 0, length 1, wIndex as below. Both directions use the same bRequest. All writes require a successful preflight read and exact matching readback. No retries, no initialization writes, no audio interface claims.
 
@@ -40,7 +40,7 @@ Follow is displayed if read, but not selectable because dependency behavior betw
 
 ## Known gaps, not simulated
 
-- No live audio meters. Meter sample processing exists at 0x1000b0080, and acquisition has now been traced at 0x1000b5c30: vendor IN 0x55, index/value 0, 28 bytes. The caller swaps each 16-bit word from big endian. Normal level decoding at 0x1000b5e60 extracts bit 15 as overload and computes 20*log10((word & 0x7fff)/32768). Words 6 and 7 instead divide by 100. The physical channel assignment of these fourteen words still needs confirmation. Never animate fabricated level meters.
+- Live meters are implemented using IN 0x55 at up to 5 Hz. Physical device validation remains pending; acquisition/mapping evidence is documented below.
 - Analog stereo-link editing is not included. Request 0xdb is read at 0x1000b1ffe and written at 0x1000b09df; its effects include analog input state as well as mixer `isStereo`. Paired parameter synchronization needs further tracing before adding a switch.
 - Recording source is implemented through 0xdc. The setter registered at 0x1000b02ce..0x1000b0330 targets `swin/swin_1_2/routeSource`. Its closure at 0x1000c0160 maps the same shared source enums (0,1,2,4,5,6) and sends 0xdc with index/value 0. Readback publishes the same property at 0x1000b1f32..0x1000b1f99. The UI provides source selection for USB recording inputs 1–2; it does not claim arbitrary loopback destination channels.
 - Input preamp configuration, phantom power, DSP, presets and fixed-output mode remain outside this build.
@@ -50,8 +50,27 @@ Follow is displayed if read, but not selectable because dependency behavior betw
 
 Unit tests use an injected USB transport: full snapshot read coverage, playback/master indexing, request direction, value conversion, pan bounds, separate mute/solo commands, per-output routing, malformed and short reads, readback mismatch and rejection of unsupported combinations. These tests do not prove physical device compatibility.
 
-The Android UI has horizontally scrollable channel strips, release-to-send vertical faders, pan sliders, mute/solo state and a separate routing tab. Values are refreshed from the device after each completed operation and via Read. There is no periodic polling yet. Controls disable while busy or after failure, and reconnect/resume require fresh reads. Snapshots from a previous connection/lifecycle generation are discarded. A failed post-write read is reported as possibly applied, not rolled back.
+The Android UI has horizontally scrollable channel strips, release-to-send vertical faders, pan sliders, mute/solo state and a separate routing tab. Values are refreshed from the device after each completed operation and via Read. Live meter polling is separate from settings reads, stops on error/background/disconnect, and does not queue unbounded work. Controls disable while busy or after failure, and reconnect/resume require fresh reads. Snapshots from a previous connection/lifecycle generation are discarded. A failed post-write read is reported as possibly applied, not rolled back.
 
 ## Read-only meter capture for hardware correlation
 
-Devices → Capture raw meter packet performs exactly one IN request 0x55 and records the 14 unsigned big-endian words in the shareable report. It does not label these values as input/playback/master meters or clear overload flags. Exact 28-byte length is required. Tests cover byte order, high-bit preservation and truncated transfers. Capture during silence, then with only Analog 1, only Analog 2 and individual playback pairs active to establish the remaining physical mapping. This is a diagnostic facility, not completed live metering.
+Devices → Capture raw meter packet performs exactly one IN request 0x55 and records the 14 unsigned big-endian words in the shareable report. It does not label these values as input/playback/master meters or clear overload flags. Exact 28-byte length is required. Tests cover byte order, high-bit preservation and truncated transfers. Capture during silence, then with only Analog 1, only Analog 2 and individual playback pairs active to establish the remaining physical mapping. This diagnostic facility is available alongside the live meter display.
+
+
+## Meter mapping and decoding (0.4.0)
+
+Glue acquisition at 0x1000b5c30 sends vendor IN 0x55, index/value 0, length 28, and swaps every 16-bit word from big endian. Conversion at 0x1000b5e60 extracts overload bit 15 and computes 20*log10((word & 0x7fff)/32768). The call at 0x10028528c resolves through stub pointer 0x1002d3a20 to `_log10`. Words 6 and 7 instead divide by 100 at 0x1000b01e2..0x1000b0233 and are gain reduction, not audio level.
+
+The Control 2 `DeviceInfo::metersForType` function is at 0x1001c7230. Its ordinary-device branch arranges groups as speaker meters, headphone meters, additional hardware outputs, analog inputs, digital inputs, FX reduction, playback, and mixer master. `DeviceInfo::updateFeatures` computes offsets at 0x1001c2d7d..0x1001c2dba from the hardware model counts. Speaker and headphone counts derive from hwout monitorType at 0x1001c29bb..0x1001c2c15. Combining the Duet's one speaker pair, one headphone pair, two analog inputs, no additional/digital inputs, two reduction values, four playback channels and one stereo mixer gives this packet mapping:
+
+| Words (zero based) | Signal |
+| --- | --- |
+| 0, 1 | Main / speaker output L, R |
+| 2, 3 | Headphone output L, R |
+| 4, 5 | Analog input 1, 2 |
+| 6, 7 | Input FX gain reduction, excluded from dBFS bars |
+| 8, 9 | Playback 1–2 |
+| 10, 11 | Playback 3–4 |
+| 12, 13 | Mixer master L, R |
+
+This mapping is a static-analysis inference, pending physical signal correlation. UI bars are actual decoded device values, never animation or random samples. Zero amplitude displays negative infinity. A failed/truncated meter read clears bars and labels them unavailable without disabling independently working mixer controls. Read reconnects polling. Settings reads/writes and meter reads share one worker so USB work is serialized. There is no automatic overload-reset write.

@@ -22,7 +22,7 @@ public final class MainActivity extends Activity {
     private final String permissionAction="com.fuzznug.fuzzcontrol.USB_PERMISSION";
     private UsbDevice selected;
     private boolean active,busy,ready;
-    private int generation,tab;
+    private int generation,tab,recordingSource;
     private int[][] mix=new int[5][4],outputs=new int[2][4];
     private TextView status;
     private LinearLayout content;
@@ -103,7 +103,7 @@ public final class MainActivity extends Activity {
             Button mute=button(card,ready&&mix[i][2]==1?"MUTE ON":"Mute",()->transact("Toggle mute "+Duet3MixerProtocol.CHANNELS[ch],s->s.mixer.toggle(ch==4?0:ch,ch==4?Duet3MixerProtocol.MASTER_MUTE:Duet3MixerProtocol.MUTE)),true);mute.setSelected(ready&&mix[i][2]==1);if(mute.isSelected())mute.setTextColor(Color.rgb(194,54,43));
             if(i<4){Button solo=button(card,ready&&mix[i][3]==1?"SOLO ON":"Solo",()->transact("Toggle solo "+Duet3MixerProtocol.CHANNELS[ch],s->s.mixer.toggle(ch,Duet3MixerProtocol.SOLO)),true);if(ready&&mix[i][3]==1)solo.setTextColor(Color.rgb(161,100,0));}
         }
-        content.addView(text("Faders show device settings after readback. Live audio meters, stereo-link editing, loopback assignment and input/DSP settings are not included in this build.",12));
+        content.addView(text("Faders show device settings after readback. Live audio meters, stereo-link editing and input/DSP settings are not included in this build.",12));
     }
     private void renderOutputs(){
         content.addView(text("OUTPUTS & ROUTING",18));
@@ -115,6 +115,17 @@ public final class MainActivity extends Activity {
             LinearLayout levels=row();button(levels,"Quieter · -1 dB",()->transact("Output "+(out+1)+" quieter",s->s.protocol.stepLevel(out,-1)),true);button(levels,"Louder · +1 dB",()->transact("Output "+(out+1)+" louder",s->s.protocol.stepLevel(out,1)),true);card.addView(levels);
             LinearLayout switches=row();button(switches,"Dim: "+(ready?(outputs[i][1]==1?"on":"off"):"?"),()->transact("Output dim "+out,s->s.protocol.toggle(out,Duet3Protocol.DIM)),true);button(switches,"Mono: "+(ready?(outputs[i][2]==1?"on":"off"):"?"),()->transact("Output mono "+out,s->s.protocol.toggle(out,Duet3Protocol.MONO)),true);card.addView(switches);
         }
+        content.addView(text("RECORDING / LOOPBACK",18));
+        button(content,"USB inputs 1–2: "+(ready?(recordingSource==3?"Unmapped source (3)":Duet3MixerProtocol.ROUTES[recordingSource]):"unknown"),this::chooseRecordingSource,true);
+        content.addView(text("Analog 1–2 sends the physical inputs to your recording app. Mixer sends this monitor mix, including playback.",13));
+    }
+    private void chooseRecordingSource(){
+        final int[] codes={6,2,0,1,4,5};String[] labels=new String[codes.length];for(int i=0;i<codes.length;i++)labels[i]=Duet3MixerProtocol.ROUTES[codes[i]];
+        new AlertDialog.Builder(this).setTitle("USB recording inputs 1–2").setItems(labels,(d,n)->
+            new AlertDialog.Builder(this).setTitle("Record " + labels[n] + "?")
+                .setMessage("This replaces the signal sent to recording apps. Disable input monitoring in your recording app before choosing Mixer or Playback to avoid feedback.")
+                .setPositiveButton("Apply",(dialog,which)->transact("Recording source "+labels[n],s->s.mixer.write(0,Duet3MixerProtocol.RECORDING_SOURCE,codes[n])))
+                .setNegativeButton("Cancel",null).show()).setNegativeButton("Cancel",null).show();
     }
     private void chooseRoute(int out){
         final int[] codes={0,1,2,4,5,6};String[] labels=new String[codes.length];for(int i=0;i<codes.length;i++)labels[i]=Duet3MixerProtocol.ROUTES[codes[i]];
@@ -123,9 +134,13 @@ public final class MainActivity extends Activity {
     private void renderDevices(){
         content.addView(text("CONNECTION & DIAGNOSTICS",18));
         button(content,"Refresh devices",this::refreshInventory,false);
-        button(content,"Share diagnostic report",()->{Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT,"Fuzz Control 0.3.0 diagnostics").putExtra(Intent.EXTRA_TEXT,report+"\nCONTROL LOG\n"+log);startActivity(Intent.createChooser(send,"Share report"));},false);
+        button(content,"Capture raw meter packet",()->transact("Read meter packet",session->{
+            String packet=Arrays.toString(session.readMeterPacket());
+            handler.post(()->{if(!isDestroyed())log.append("Raw meter words (unmapped): ").append(packet).append('\n');});
+        }),true);
+        button(content,"Share diagnostic report",()->{Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT,"Fuzz Control 0.3.1 diagnostics").putExtra(Intent.EXTRA_TEXT,report+"\nCONTROL LOG\n"+log);startActivity(Intent.createChooser(send,"Share report"));},false);
         TextView data=text(report,12);data.setTypeface(Typeface.MONOSPACE);data.setTextIsSelectable(true);content.addView(data);
-        content.addView(text("Experimental 0.3.0. USB controls are independently implemented. No Apogee software is bundled. No audio recording or network access.",12));
+        content.addView(text("Experimental 0.3.1. USB controls are independently implemented. No Apogee software is bundled. No audio recording or network access.",12));
     }
     private void connect(){
         if(busy)return;List<UsbDevice> devices=DeviceInventory.usbDevices(this);devices.removeIf(d->!Duet3Usb.matches(d));
@@ -142,15 +157,15 @@ public final class MainActivity extends Activity {
         if(busy)return;if(selected==null){status.setText("Tap Connect first.");return;}
         final UsbDevice device=selected;final int token=generation;busy=true;render();status.setText(label+"…");
         worker.execute(()->{
-            int[][] nextMix=null,nextOutputs=new int[2][4];String message;boolean ok=false;
+            int[][] nextMix=null,nextOutputs=new int[2][4];int nextRecording=0;String message;boolean ok=false;
             try(Duet3Usb session=new Duet3Usb((UsbManager)getSystemService(USB_SERVICE),device)){
-                op.run(session);nextMix=session.mixer.snapshot();
+                op.run(session);nextMix=session.mixer.snapshot();nextRecording=session.mixer.read(0,Duet3MixerProtocol.RECORDING_SOURCE);
                 for(int i=0;i<2;i++){nextOutputs[i][0]=session.protocol.read(i,Duet3Protocol.LEVEL);nextOutputs[i][1]=session.protocol.read(i,Duet3Protocol.DIM);nextOutputs[i][2]=session.protocol.read(i,Duet3Protocol.MONO);nextOutputs[i][3]=session.mixer.read(i,Duet3MixerProtocol.ROUTE);}
                 message=label+" • device readback received. Hardware/audio validation pending.";ok=true;
             }catch(IOException|RuntimeException e){message=label+" failed: "+e.getMessage()+". Tap Read to recover; a write may already have applied.";}
-            final int[][] m=nextMix,o=nextOutputs;final String result=message;final boolean success=ok;
-            handler.post(()->{busy=false;if(isDestroyed())return;log.append(result).append('\n');if(success)log.append("Mixer ").append(Arrays.deepToString(m)).append("\nOutputs ").append(Arrays.deepToString(o)).append('\n');if(log.length()>20000)log.delete(0,log.length()-20000);
-                if(!active||token!=generation)return;ready=success;if(success){mix=m;outputs=o;}status.setText(result);render();});
+            final int rec=nextRecording;final int[][] m=nextMix,o=nextOutputs;final String result=message;final boolean success=ok;
+            handler.post(()->{busy=false;if(isDestroyed())return;log.append(result).append('\n');if(success)log.append("Mixer ").append(Arrays.deepToString(m)).append("\nOutputs ").append(Arrays.deepToString(o)).append("\nRecording source ").append(rec).append('\n');if(log.length()>20000)log.delete(0,log.length()-20000);
+                if(!active||token!=generation)return;ready=success;if(success){mix=m;outputs=o;recordingSource=rec;}status.setText(result);render();});
         });
     }
     private void disconnect(String message){generation++;selected=null;ready=false;status.setText(message);render();}

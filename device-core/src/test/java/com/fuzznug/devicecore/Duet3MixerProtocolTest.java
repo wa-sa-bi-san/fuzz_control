@@ -46,6 +46,14 @@ public class Duet3MixerProtocolTest {
     @Test public void ignoredWritesFailVerification(){
         Fake f=new Fake();f.ignoreWrites=true;assertThrows(IOException.class,()->new Duet3MixerProtocol(f).write(0,0x4f,1));
     }
+    @Test public void recordingSourceIsSeparateFromOutputRoute() throws Exception {
+        Fake f=new Fake();f.values.put("83:0",1);Duet3MixerProtocol p=new Duet3MixerProtocol(f);
+        p.write(0,Duet3MixerProtocol.RECORDING_SOURCE,2);
+        assertEquals(Arrays.asList("192:220:0:0","64:220:0:2","192:220:0:0"),f.calls);
+        assertEquals(Integer.valueOf(1),f.values.get("83:0"));
+        assertThrows(IllegalArgumentException.class,()->p.write(1,0xdc,2));
+        assertThrows(IllegalArgumentException.class,()->p.write(0,0xdc,3));
+    }
     @Test public void illegalCombinationsNeverReachUsb(){
         Fake f=new Fake();Duet3MixerProtocol p=new Duet3MixerProtocol(f);
         assertThrows(IllegalArgumentException.class,()->p.write(4,0x4e,1));assertThrows(IllegalArgumentException.class,()->p.write(4,0x4d,64));assertThrows(IllegalArgumentException.class,()->p.write(1,0xe2,1));

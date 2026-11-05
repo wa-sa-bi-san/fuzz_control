@@ -2,17 +2,18 @@
 
 Open-source standalone Android controller for Apogee Duet 3, with a reusable device library for later integration into FuzzNug Ultimate. Unofficial and not affiliated with Apogee.
 
-## Version 0.3.0: experimental hardware mixer and output routing
+## Version 0.3.1: experimental hardware mixer and output routing
 
 - Five mixer strips: Analog 1, Analog 2, Playback 1–2, Playback 3–4 and Mix master.
 - Mixer faders (-48..+6 dB), pan, channel mute/solo and master mute, with hardware readback.
+- Recording-source selection for USB inputs 1–2, including the mixer for loopback.
 - Independent output routing to Mixer, playback pairs or analog sources.
 - Two physical output levels, Dim and Mono, recovered from the Mac application's transport and named handlers.
 - 1 dB level steps; reads actual current state before changing it and verifies the response afterward.
 - USB/audio/MIDI inventory, device permission requests, hotplug updates and shareable diagnostics.
 - Direct USB and hubs use the same device enumeration. Hardware compatibility, output labels and audio coexistence still need testing on the owner's phone and Duet.
 
-**This is not yet an Apogee Control 2 replacement.** Live meters, analog stereo-link editing, loopback assignment, input gain/configuration, presets and DSP are not implemented. No physical device tests have been performed. A passing build or USB response is not proof that audio changes correctly.
+**This is not yet an Apogee Control 2 replacement.** Live meters, analog stereo-link editing, input gain/configuration, presets and DSP are not implemented. No physical device tests have been performed. A passing build or USB response is not proof that audio changes correctly.
 
 ## Install and test
 

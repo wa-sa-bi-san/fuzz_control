@@ -4,7 +4,7 @@ import java.io.IOException;
 
 /** Duet 3 monitor mixer. Values are wire bytes, never audio samples. */
 public final class Duet3MixerProtocol {
-    public static final int LEVEL=0x4c, PAN=0x4d, SOLO=0x4e, MUTE=0x4f, MASTER_MUTE=0xe2, ROUTE=0x53;
+    public static final int LEVEL=0x4c, PAN=0x4d, SOLO=0x4e, MUTE=0x4f, MASTER_MUTE=0xe2, ROUTE=0x53, RECORDING_SOURCE=0xdc;
     public static final String[] CHANNELS={"Analog 1", "Analog 2", "Playback 1–2", "Playback 3–4", "Mix master"};
     public static final String[] ROUTES={"Playback 1–2", "Playback 3–4", "Mixer", "Follow", "Analog 1", "Analog 2", "Analog 1–2"};
     private final Duet3Protocol.Transport transport;
@@ -16,6 +16,7 @@ public final class Duet3MixerProtocol {
             case MUTE: case SOLO: if(index>=0 && index<=3) return 1; break;
             case MASTER_MUTE: if(index==0) return 1; break;
             case ROUTE: if(index>=0 && index<=1) return 6; break;
+            case RECORDING_SOURCE: if(index==0) return 6; break;
             default: break;
         }
         throw new IllegalArgumentException("Unsupported mixer request/index");
@@ -32,7 +33,7 @@ public final class Duet3MixerProtocol {
         int limit=max(index,request);
         if(value<0 || value>limit) throw new IllegalArgumentException("Mixer value outside range");
         // Follow depends on another output's configuration; display it but do not create it.
-        if(request==ROUTE && value==3) throw new IllegalArgumentException("Follow routing is read-only");
+        if((request==ROUTE || request==RECORDING_SOURCE) && value==3) throw new IllegalArgumentException("Follow routing is read-only");
         read(index,request); // Never write after a failed preflight read.
         int count=transport.transfer(0x40,request,0,index,new byte[]{(byte)value});
         if(count!=1) throw new IOException("Mixer write failed; reread device");

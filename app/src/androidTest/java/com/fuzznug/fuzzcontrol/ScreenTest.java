@@ -29,8 +29,13 @@ public class ScreenTest {
                 for(int tab=0;tab<7;tab++){final int current=tab;scenario.onActivity(a->{try{render(a,current);assertNotNull(a.findViewById(android.R.id.content));}catch(Exception e){throw new AssertionError(e);}});
                     InstrumentationRegistry.getInstrumentation().waitForIdleSync();
                     Bitmap screenshot=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();assertNotNull(screenshot);
-                    File root=InstrumentationRegistry.getInstrumentation().getTargetContext().getExternalFilesDir("screenshots");assertNotNull(root);assertTrue(root.exists()||root.mkdirs());
-                    try(FileOutputStream out=new FileOutputStream(new File(root,"screen-"+orientation+"-"+tab+".png"))){assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG,100,out));}screenshot.recycle();
+                    android.content.ContentResolver resolver=InstrumentationRegistry.getInstrumentation().getTargetContext().getContentResolver();
+                    android.content.ContentValues metadata=new android.content.ContentValues();
+                    metadata.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,"screen-"+orientation+"-"+tab+".png");
+                    metadata.put(android.provider.MediaStore.Images.Media.MIME_TYPE,"image/png");
+                    metadata.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,"Pictures/FuzzControlChecks");
+                    android.net.Uri uri=resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,metadata);assertNotNull(uri);
+                    try(OutputStream out=resolver.openOutputStream(uri)){assertNotNull(out);assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG,100,out));}screenshot.recycle();
                 }
             }
         }

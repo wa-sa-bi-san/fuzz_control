@@ -8,6 +8,7 @@ import java.util.Locale;
 public final class Duet3Usb implements AutoCloseable {
     private final UsbDeviceConnection connection;
     public final Duet3Protocol protocol;
+    public final Duet3MixerProtocol mixer;
     public static boolean matches(UsbDevice device) {
         String name = device.getProductName();
         String maker = device.getManufacturerName();
@@ -20,8 +21,10 @@ public final class Duet3Usb implements AutoCloseable {
         if (!manager.hasPermission(device)) throw new IOException("Request USB access first");
         connection = manager.openDevice(device);
         if (connection == null) throw new IOException("Cannot open Duet 3. Reconnect and request access.");
-        protocol = new Duet3Protocol((type, request, value, index, data) ->
-            connection.controlTransfer(type, request, value, index, data, data.length, 500));
+        Duet3Protocol.Transport transport = (type, request, value, index, data) ->
+            connection.controlTransfer(type, request, value, index, data, data.length, 500);
+        protocol = new Duet3Protocol(transport);
+        mixer = new Duet3MixerProtocol(transport);
     }
     @Override public void close() { connection.close(); }
 }

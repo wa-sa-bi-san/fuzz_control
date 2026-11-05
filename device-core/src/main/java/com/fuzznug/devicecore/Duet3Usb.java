@@ -10,6 +10,10 @@ public final class Duet3Usb implements AutoCloseable {
     private final Duet3Protocol.Transport transport;
     public final Duet3Protocol protocol;
     public final Duet3MixerProtocol mixer;
+    public final Duet3InputProtocol input;
+    public final Duet3DspProtocol dsp;
+    public final Duet3SystemProtocol system;
+    public final Duet3Controller controller;
     public static boolean matches(UsbDevice device) {
         String name = device.getProductName();
         String maker = device.getManufacturerName();
@@ -26,6 +30,10 @@ public final class Duet3Usb implements AutoCloseable {
             connection.controlTransfer(type, request, value, index, data, data.length, 500);
         protocol = new Duet3Protocol(transport);
         mixer = new Duet3MixerProtocol(transport);
+        input = new Duet3InputProtocol(transport);
+        dsp = new Duet3DspProtocol(transport);
+        system = new Duet3SystemProtocol(transport);
+        controller = new Duet3Controller(input,mixer,dsp);
     }
     public int[] readMeterPacket() throws IOException { return Duet3MeterPacket.read(transport); }
     @Override public void close() { connection.close(); }

@@ -18,7 +18,7 @@ public final class DeviceInventory {
         return devices;
     }
     public static String report(Context context) {
-        StringBuilder out = new StringBuilder("FUZZ CONTROL 0.4.0 — DEVICE REPORT\n");
+        StringBuilder out = new StringBuilder("FUZZ CONTROL 0.5.0 — DEVICE REPORT\n");
         out.append("Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT)
             .append(") / ").append(Build.MANUFACTURER).append(" ").append(Build.MODEL).append("\n");
         out.append("Inventory section is read-only. Experimental output controls are separate.\n");

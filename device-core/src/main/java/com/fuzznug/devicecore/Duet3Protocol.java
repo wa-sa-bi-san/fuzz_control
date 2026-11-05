@@ -4,7 +4,7 @@ import java.io.IOException;
 
 /** Independently recovered Control 2 1.21.55 protocol. Hardware validation pending. */
 public final class Duet3Protocol {
-    public static final int LEVEL = 0x33, DIM = 0x40, MONO = 0x46;
+    public static final int LEVEL = 0x33, DIM = 0x40, MONO = 0x46, MUTE = 0x35;
     public interface Transport {
         int transfer(int type, int request, int value, int index, byte[] data);
     }
@@ -12,7 +12,7 @@ public final class Duet3Protocol {
     public Duet3Protocol(Transport transport) { this.transport = transport; }
     private static void validate(int output, int request) {
         if (output < 0 || output > 1) throw new IllegalArgumentException("Invalid output");
-        if (request != LEVEL && request != DIM && request != MONO)
+        if (request != LEVEL && request != DIM && request != MONO && request != MUTE)
             throw new IllegalArgumentException("Unsupported command");
     }
     public int read(int output, int request) throws IOException {
@@ -44,7 +44,7 @@ public final class Duet3Protocol {
         return next == attenuation ? attenuation : writeAndVerify(output, LEVEL, next);
     }
     public int toggle(int output, int request) throws IOException {
-        if (request != DIM && request != MONO) throw new IllegalArgumentException("Not a toggle");
+        if (request != DIM && request != MONO && request != MUTE) throw new IllegalArgumentException("Not a toggle");
         return writeAndVerify(output, request, 1 - read(output, request));
     }
 }

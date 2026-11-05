@@ -39,7 +39,8 @@ public class ScreenTest {
         android.content.Context context=InstrumentationRegistry.getInstrumentation().getTargetContext();PresetStore store=new PresetStore(context);
         store.save(new PresetStore.Preset("Test guitar","dsp",Duet3DspProtocol.FLAT));String before=store.exportText();
         assertEquals(17,PresetStore.decode(before).get(0).data.length);
-        try{store.importText(before.replace("20.0","99999.0"));fail("Invalid parameter accepted");}catch(IllegalArgumentException expected){}
+        org.json.JSONObject invalid=new org.json.JSONObject(before);invalid.getJSONArray("presets").getJSONObject(0).getJSONArray("values").put(7,99999);
+        try{store.importText(invalid.toString());fail("Invalid parameter accepted");}catch(IllegalArgumentException expected){}
         assertEquals(before,store.exportText());store.delete("Test guitar");
     }
 }

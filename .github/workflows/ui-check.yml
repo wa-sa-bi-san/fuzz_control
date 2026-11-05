@@ -36,9 +36,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            gradle --no-daemon :app:connectedDebugAndroidTest
-            adb pull /sdcard/Android/data/com.fuzznug.fuzzcontrol/files/screenshots screenshots
+          script: bash -c 'gradle --no-daemon :app:connectedDebugAndroidTest; result=$?; adb pull /sdcard/Android/data/com.fuzznug.fuzzcontrol/files/screenshots screenshots; exit "$result"' 
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -58,7 +58,7 @@ The descriptor table constructed at 0x100274695..0x10027517c establishes IDs and
 | 15 | Wet mix | 0..1 |
 | 16 | Drive | 0..10 |
 
-Discrete label direction (notably bandwidth 0/1) and the ratio ordering require comparison with the physical device and official UI. They are not claims of measured audio behavior. Numeric identifiers/ranges and transport fields are traced independently.
+Discrete labels are independently corroborated in the ECS Print plugin x86_64 slice: callback 0x47710 selects Sharp for false and Broad for true; the ordered string table at 0x157d250 contains 3:1, 5:1, 10:1. These establish bandwidth and ratio labels without claiming measured audio behavior.
 
 ## Output/system additions
 

@@ -204,6 +204,7 @@ public final class MainActivity extends Activity {
             final int out=i;LinearLayout card=column();panel(card,Color.rgb(26,34,48));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(8),0,dp(8));content.addView(card,lp);
             card.addView(text("Output "+(i+1)+(ready?" · -"+outputs[i][0]+" dB":" · not read"),20));
             new MeterDisplay(card,Duet3MeterPacket.OUTPUT_WORDS[i]);
+            if(ready&&outputs[i][0]<=64)slider(card,"Output level (dB)",-outputs[i][0],-64,0,1,true,v->transact("Output level",s->{if(s.protocol.read(out,Duet3Protocol.LEVEL)>64)throw new IOException("Output is below the adjustable range; reread device");s.protocol.writeAndVerify(out,Duet3Protocol.LEVEL,-Math.round(v));}));
             button(card,"Source: "+(ready?Duet3MixerProtocol.ROUTES[outputs[i][3]]:"unknown"),()->chooseRoute(out),true);
             LinearLayout levels=column();button(levels,"Quieter · -1 dB",()->transact("Output "+(out+1)+" quieter",s->s.protocol.stepLevel(out,-1)),true);button(levels,"Louder · +1 dB",()->transact("Output "+(out+1)+" louder",s->s.protocol.stepLevel(out,1)),true);card.addView(levels);
             button(card,"Mute: "+(ready?(outputs[i][4]==1?"on":"off"):"?"),()->transact("Output mute "+out,s->s.protocol.toggle(out,Duet3Protocol.MUTE)),true);

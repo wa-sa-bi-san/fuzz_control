@@ -1,5 +1,6 @@
 # USB transport analysis
 
+Historical checkpoint. Superseded by [the recovered output protocol](duet3-output-protocol.md) and experimental 0.2.0 implementation.
 Static inspection of user-provided Control 2 DSP 1.21.55, ApogeeGlue x86_64 slice. No hardware requests sent.
 
 Located vendor-OUT implementation at virtual address 0x10003e3d0 by cross-reference to the sendUSBOutVendorRequest diagnostic. It constructs a request with bmRequestType 0x40. Request is taken from sil; value from r9w; index from r8w; length from cx; data pointer from rdx. It calls the device interface indirectly at vtable offset 0xf0. This is a generic helper, not yet a verified Duet 3 parameter command.

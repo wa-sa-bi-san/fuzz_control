@@ -1,37 +1,36 @@
 # Fuzz Control
-Standalone Android diagnostics for an Apogee Duet 3 and USB/MIDI devices, an open-source project with a reusable device library that can later be integrated into FuzzNug Ultimate.
 
-## Version 0.1.0
-- Lists USB interfaces/endpoints, MIDI 1.0 devices, and Android audio inputs/outputs.
-- Refreshes when devices connect/disconnect, including devices behind hubs.
-- Explicit per-device USB permission request.
-- Shareable plain-text report. No network permission, analytics, serial-number collection, audio recording, interface claiming, or vendor command writes.
-- Does **not** yet change Duet gain, routing, monitoring, phantom power, or DSP. Listing channels does not prove simultaneous multichannel audio support.
+Open-source standalone Android controller for Apogee Duet 3, with a reusable device library for later integration into FuzzNug Ultimate. Unofficial and not affiliated with Apogee.
 
-## Install
-Open this repository's **Actions → Build Android APK → latest successful run → Artifacts → fuzz-control-apk** in your phone's browser. Download and unzip the artifact, then open the APK and allow installation from that browser/file manager if Android asks.
-This is a debug-signed development APK. CI uses a generated debug signing key; a future build may require uninstalling the previous app before installing. Stable APK signing will be configured later without committing signing keys.
+## Version 0.2.0: experimental output controls
 
-## First hardware test
-1. Connect the Duet directly to the phone. Open Fuzz Control and share its report.
-2. Repeat through a powered hub with Duet and a MIDI controller attached.
-3. Repeat with the second hub. Unplug/reconnect each peripheral and verify the list refreshes.
-4. While your usual audio app plays through the Duet, open Fuzz Control and refresh. Confirm playback remains stable.
-USB inventory cannot reliably show hub topology, power budget, or cable health. No computer needs to remain connected for this Android diagnostic app.
+- USB reads and writes for two hardware output levels, Dim and Mono, recovered from the Mac application's transport and named handlers.
+- 1 dB level steps; reads actual current state before changing it and verifies the response afterward.
+- USB/audio/MIDI inventory, device permission requests, hotplug updates and shareable diagnostics.
+- Direct USB and hubs use the same device enumeration. Hardware compatibility, output labels and audio coexistence still need testing on the owner's phone and Duet.
+
+**This is not yet an Apogee Control 2 replacement.** The mixer, input gain/configuration, routing, meters, presets and DSP are not implemented. No physical device tests have been performed. A passing build or USB response is not proof that audio changes correctly.
+
+## Install and test
+
+Open **Actions → Build Android APK → latest successful run → Artifacts → fuzz-control-apk** in your phone's browser. Download and unzip, then open the APK. This is a debug-signed development APK; CI generates a new debug key, so you may need to uninstall a previous build before installing.
+
+1. Connect Duet directly to the phone. Tap **Request USB access** and choose it.
+2. Tap **Connect Duet 3 controls**. Initial connection only reads settings.
+3. With quiet audio, compare the displayed levels with the Duet. Tap **Quieter · -1 dB** on one output and check the physical change.
+4. Confirm which numbered output is speakers and which is headphones. Check Dim and Mono, then restore them.
+5. Share the diagnostic report. Repeat through your powered hub with MIDI devices attached and check that audio continues.
+
+If no matching Duet appears, share the report rather than trying another device. The current matcher requires Duet 3 / Apogee USB name descriptors. USB inventory cannot establish hub power, cabling or topology. No Mac or PC is required for the Android app's control path.
 
 ## Development
-Java 17, Android SDK 35, Android Gradle Plugin 8.9.1, Gradle 8.11.1.
-Open the project in Android Studio, or run:
+
+Java 17, SDK 35, AGP 8.9.1, Gradle 8.11.1. The workflow installs Gradle; no wrapper yet.
+
 ```sh
-gradle :app:assembleDebug :app:lintDebug
+gradle :device-core:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
-The GitHub workflow installs Gradle; a wrapper is not yet included.
 
-## Architecture and next step
-`device-core` is an Android library with read-only inventory, independent of the standalone UI in `app`. It can later be imported into FuzzNug.
-Next: capture/inspect the Duet 3's actual control protocol using owned hardware and Apogee Control 2, document commands, then prove readback and a reversible control change while audio runs. Do not reuse another Apogee model's command values without verification. Firmware updates and DSP recreation are outside this first version.
+`device-core` contains inventory, endpoint-zero transport and an independently testable protocol. `app` contains the standalone UI. Protocol tests cover USB packet fields, short/failed transfers, invalid responses, readback mismatches, bounds, fresh reads and distinct toggles. See [protocol evidence](docs/duet3-output-protocol.md).
 
-Unofficial project; not affiliated with Apogee. Hardware behavior and UI have not yet been tested on a physical phone.
-
-## Open-source contribution
-This repository contains standalone code only: no private FuzzNug source, account credentials, tokens, or signing keys. Released under the MIT License (see LICENSE), allowing reuse and later integration into FuzzNug. No third-party source has been copied into this initial implementation.
+No network permission, analytics, serial collection, audio recording, firmware flashing or audio/MIDI interface claiming. Repository contains no proprietary Apogee binaries/assets, private FuzzNug code, account credentials or signing keys. MIT licensed.

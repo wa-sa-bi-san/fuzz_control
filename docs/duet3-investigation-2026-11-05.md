@@ -1,5 +1,6 @@
 # Duet 3 investigation, 2026-11-05
 
+Historical checkpoint. Superseded by [the recovered output protocol](duet3-output-protocol.md) and experimental 0.2.0 implementation.
 ## Status
 The existing Android APK is a device inventory tool. No mixer, gain, routing, DSP or phantom power commands have been implemented or verified. This investigation does not establish full Control 2 parity.
 

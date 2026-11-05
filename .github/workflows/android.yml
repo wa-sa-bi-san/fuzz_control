@@ -27,11 +27,11 @@ jobs:
         with:
           gradle-version: '8.11.1'
       - name: Compile and lint
-        run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+        run: gradle --no-daemon :device-core:testDebugUnitTest :app:assembleDebug :app:lintDebug
       - name: Package APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/fuzz-control-0.1.0-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/fuzz-control-0.2.0-debug.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:

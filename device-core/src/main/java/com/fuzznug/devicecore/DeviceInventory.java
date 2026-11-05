@@ -18,10 +18,10 @@ public final class DeviceInventory {
         return devices;
     }
     public static String report(Context context) {
-        StringBuilder out = new StringBuilder("FUZZ CONTROL 0.1.0 — DEVICE REPORT\n");
+        StringBuilder out = new StringBuilder("FUZZ CONTROL 0.2.0 — DEVICE REPORT\n");
         out.append("Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT)
             .append(") / ").append(Build.MANUFACTURER).append(" ").append(Build.MODEL).append("\n");
-        out.append("Inventory only. Hardware controls are not implemented.\n");
+        out.append("Inventory section is read-only. Experimental output controls are separate.\n");
         out.append("No serial numbers collected. Review names before sharing.\n\nUSB DEVICES\n");
         UsbManager usb = (UsbManager) context.getSystemService(Context.USB_SERVICE);
         List<UsbDevice> devices = usbDevices(context);

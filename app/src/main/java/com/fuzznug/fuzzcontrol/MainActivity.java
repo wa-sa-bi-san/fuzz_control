@@ -9,11 +9,22 @@ import android.os.*;
 import android.graphics.Color;
 import android.view.*;
 import android.widget.*;
-import com.fuzznug.devicecore.DeviceInventory;
+import com.fuzznug.devicecore.*;
+import java.util.concurrent.*;
+import java.io.IOException;
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private TextView reportView;
+    private TextView reportView, controlStatus;
+    private LinearLayout controls;
+    private final ExecutorService usbWorker = Executors.newSingleThreadExecutor();
+    private boolean busy, active;
+    private UsbDevice selected;
+    private final StringBuilder controlLog = new StringBuilder();
+    private final int[][] values = new int[2][3];
+    private boolean ready;
+    private interface Operation { void run(Duet3Protocol protocol) throws IOException; }
+
     private String report = "";
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final String permissionAction = "com.fuzznug.fuzzcontrol.USB_PERMISSION";
@@ -25,6 +36,10 @@ public final class MainActivity extends Activity {
             if (permissionAction.equals(intent.getAction())) {
                 Toast.makeText(c, intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
                     ? "USB access granted" : "USB access was not granted", Toast.LENGTH_SHORT).show();
+            }
+            if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(intent.getAction())) {
+                selected = null; ready = false; renderControls();
+                controlStatus.setText("USB device detached. Reconnect and read outputs again.");
             }
             queueRefresh();
         }
@@ -51,25 +66,104 @@ public final class MainActivity extends Activity {
         TextView title = text("FUZZ CONTROL", 26);
         title.setTextColor(Color.rgb(142, 235, 196));
         layout.addView(title);
-        layout.addView(text("Duet 3 · USB & MIDI diagnostics", 16));
-        layout.addView(text("Connect directly or through powered hubs. This version detects devices; Apogee settings controls are still under investigation.", 14));
-        addButton(layout, "Refresh devices", () -> refresh());
-        addButton(layout, "Request USB access…", () -> chooseUsb());
-        addButton(layout, "Share diagnostic report", () -> {
+        layout.addView(text("Duet 3 · Experimental output controls", 16));
+        layout.addView(text("Recovered from Control 2. Hardware validation pending. Full mixer, inputs, routing and DSP are not implemented yet.", 14));
+        ScrollView page = new ScrollView(this);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        page.addView(body);
+        layout.addView(page, new LinearLayout.LayoutParams(-1, 0, 1));
+        addButton(body, "Connect Duet 3 controls", () -> connectControls());
+        controlStatus = text("Connect your Duet 3, grant USB access, then read its outputs.", 14);
+        body.addView(controlStatus);
+        controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        body.addView(controls);
+        addButton(body, "Read outputs", () -> transact(p -> {}));
+        addButton(body, "Refresh devices", () -> refresh());
+        addButton(body, "Request USB access…", () -> chooseUsb());
+        addButton(body, "Share diagnostic report", () -> {
             Intent send = new Intent(Intent.ACTION_SEND);
             send.setType("text/plain");
             send.putExtra(Intent.EXTRA_SUBJECT, "Fuzz Control diagnostic report");
-            send.putExtra(Intent.EXTRA_TEXT, report);
+            send.putExtra(Intent.EXTRA_TEXT, report + "\nCONTROL LOG\n" + controlLog);
             startActivity(Intent.createChooser(send, "Share report"));
         });
-        ScrollView scroll = new ScrollView(this);
         reportView = text("", 13);
         reportView.setTypeface(android.graphics.Typeface.MONOSPACE);
         reportView.setTextIsSelectable(true);
-        scroll.addView(reportView);
-        layout.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        body.addView(reportView);
         setContentView(layout);
         refresh();
+    }
+    private void connectControls() {
+        List<UsbDevice> devices = DeviceInventory.usbDevices(this);
+        devices.removeIf(d -> !Duet3Usb.matches(d));
+        if (devices.isEmpty()) {
+            controlStatus.setText("No device identifying as Apogee Duet 3 found. Share the diagnostic report if yours is connected.");
+            return;
+        }
+        String[] names = new String[devices.size()];
+        for (int i = 0; i < names.length; i++) names[i] = "Duet 3 #" + (i + 1);
+        new AlertDialog.Builder(this).setTitle("Choose Duet 3").setItems(names, (d, i) -> {
+            if (busy) return;
+            selected = devices.get(i); ready = false; renderControls();
+            transact(p -> {});
+        }).setNegativeButton("Cancel", null).show();
+    }
+    private void renderControls() {
+        if (controls == null) return;
+        controls.removeAllViews();
+        for (int output = 0; output < 2; output++) {
+            final int index = output;
+            controls.addView(text("Output " + (output + 1) + " · " + (ready ? "-" + values[output][0] + " dB" : "not read"), 20));
+            controls.addView(text("Device output index " + output + ". Speaker/headphone labels await hardware confirmation.", 12));
+            addButton(controls, "Quieter · -1 dB", () -> transact(p -> p.stepLevel(index, -1)));
+            addButton(controls, "Louder · +1 dB", () -> transact(p -> p.stepLevel(index, 1)));
+            addButton(controls, "Dim: " + (ready ? (values[output][1] == 1 ? "on" : "off") : "unknown"),
+                () -> transact(p -> p.toggle(index, Duet3Protocol.DIM)));
+            addButton(controls, "Mono: " + (ready ? (values[output][2] == 1 ? "on" : "off") : "unknown"),
+                () -> transact(p -> p.toggle(index, Duet3Protocol.MONO)));
+        }
+        for (int i = 0; i < controls.getChildCount(); i++)
+            if (controls.getChildAt(i) instanceof Button) controls.getChildAt(i).setEnabled(ready && !busy);
+    }
+    private void transact(Operation operation) {
+        if (busy) return;
+        if (selected == null) { controlStatus.setText("Connect Duet 3 controls first."); return; }
+        final UsbDevice device = selected;
+        busy = true; renderControls();
+        controlStatus.setText("Reading device…");
+        usbWorker.execute(() -> {
+            String result;
+            int[][] snapshot = new int[2][3];
+            boolean success = false;
+            try (Duet3Usb session = new Duet3Usb((UsbManager)getSystemService(USB_SERVICE), device)) {
+                operation.run(session.protocol);
+                for (int i = 0; i < 2; i++) {
+                    snapshot[i][0] = session.protocol.read(i, Duet3Protocol.LEVEL);
+                    snapshot[i][1] = session.protocol.read(i, Duet3Protocol.DIM);
+                    snapshot[i][2] = session.protocol.read(i, Duet3Protocol.MONO);
+                }
+                result = "Device readback: output 1 -" + snapshot[0][0] + " dB, output 2 -" + snapshot[1][0] + " dB. Dim=" + snapshot[0][1] + "/" + snapshot[1][1] + ", Mono=" + snapshot[0][2] + "/" + snapshot[1][2] + ". Verify the change on the Duet. No audio test performed.";
+                success = true;
+            } catch (IOException | RuntimeException e) {
+                result = "Control stopped: " + e.getMessage() + ". Read outputs before trying again.";
+            }
+            final String message = result;
+            final boolean ok = success;
+            handler.post(() -> {
+                busy = false;
+                if (isDestroyed()) return;
+                controlLog.append(message).append("\n");
+                if (controlLog.length() > 12000) controlLog.delete(0, controlLog.length() - 12000);
+                if (!active || selected != device) return;
+                ready = ok;
+                if (ok) for (int i = 0; i < 2; i++) System.arraycopy(snapshot[i], 0, values[i], 0, 3);
+                controlStatus.setText(message);
+                renderControls();
+            });
+        });
     }
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
     private TextView text(String value, int size) {
@@ -106,6 +200,8 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onStart() {
         super.onStart();
+        active = true;
+        renderControls();
         IntentFilter filter = new IntentFilter(permissionAction);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
@@ -118,10 +214,12 @@ public final class MainActivity extends Activity {
         refresh();
     }
     @Override protected void onStop() {
+        active = false; ready = false; selected = null;
         unregisterReceiver(usbReceiver);
         if (audio != null) audio.unregisterAudioDeviceCallback(audioCallback);
         if (midi != null) midi.unregisterDeviceCallback(midiCallback);
         handler.removeCallbacks(refreshTask);
         super.onStop();
     }
+    @Override protected void onDestroy() { usbWorker.shutdown(); super.onDestroy(); }
 }

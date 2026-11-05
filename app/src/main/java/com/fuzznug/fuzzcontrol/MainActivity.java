@@ -85,8 +85,13 @@ public final class MainActivity extends Activity {
         super.onCreate(state);presets=new PresetStore(this);
         LinearLayout root=column();root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xff101b29,0xff080d16,0xff121326}));root.setPadding(dp(14),dp(12),dp(14),dp(12));
         root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(dp(14)+i.getSystemWindowInsetLeft(),dp(8)+i.getSystemWindowInsetTop(),dp(14)+i.getSystemWindowInsetRight(),dp(8)+i.getSystemWindowInsetBottom());return i;});
-        LinearLayout heading=row();TextView title=text("FUZZ CONTROL",24);title.setTextColor(0xff82ffe0);title.setTypeface(Typeface.create("sans-serif-black",Typeface.NORMAL));title.setLetterSpacing(0.10f);title.setShadowLayer(dp(12),0,0,0x9961e2b7);heading.addView(title);root.addView(heading);TextView subtitle=text("DUET 3  /  MOBILE CONTROL",11);subtitle.setLetterSpacing(0.18f);subtitle.setTextColor(0xff8199b3);root.addView(subtitle);heading=row();
-        button(heading,"Connect",this::connect,false).setLayoutParams(new LinearLayout.LayoutParams(0,dp(48),1));button(heading,"Read",()->transact("Refresh settings",s->{}),false).setLayoutParams(new LinearLayout.LayoutParams(0,dp(48),1));root.addView(heading);
+        boolean landscape=getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        LinearLayout heading=row(),brand=column();TextView title=text("FUZZ CONTROL",24);title.setTextColor(0xff82ffe0);title.setTypeface(Typeface.create("sans-serif-black",Typeface.NORMAL));title.setLetterSpacing(0.10f);title.setShadowLayer(dp(12),0,0,0x9961e2b7);brand.addView(title);
+        TextView subtitle=text("DUET 3  /  MOBILE CONTROL",11);subtitle.setLetterSpacing(0.18f);subtitle.setTextColor(0xff8199b3);subtitle.setPadding(dp(4),0,dp(4),dp(8));brand.addView(subtitle);
+        heading.addView(brand,new LinearLayout.LayoutParams(0,-2,1));root.addView(heading);
+        LinearLayout connection=landscape?heading:row();
+        for(int c=0;c<2;c++){Button control=c==0?button(connection,"Connect",this::connect,false):button(connection,"Read",()->transact("Refresh settings",s->{}),false);LinearLayout.LayoutParams lp=landscape?new LinearLayout.LayoutParams(dp(112),dp(48)):new LinearLayout.LayoutParams(0,dp(48),1);lp.setMargins(dp(3),dp(4),dp(3),dp(6));control.setLayoutParams(lp);}
+        if(!landscape)root.addView(connection);
         status=text("Duet 3 • Connect to read settings. Hardware testing pending.",13);status.setTextColor(0xff91a8bd);status.setTextSize(12);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);
         LinearLayout tabs=row();String[] labels={"Mixer","Inputs","FX","Outputs","Presets","System","Devices"};
         for(int i=0;i<labels.length;i++){final int index=i;Button b=button(tabs,labels[i],()->{tab=index;render();},false);LinearLayout.LayoutParams navLp=new LinearLayout.LayoutParams(dp(88),dp(44));navLp.setMargins(0,dp(6),dp(6),dp(8));b.setLayoutParams(navLp);tabButtons.add(b);}

@@ -2,7 +2,7 @@
 
 Standalone open-source Android controller for **Apogee Duet 3**, with reusable `device-core` code for future FuzzNug integration. Unofficial and not affiliated with Apogee.
 
-## Version 0.5.0
+## Version 0.5.1
 
 - **Mixer:** Analog 1/2, Playback 1–2/3–4, master faders, pan, mute/solo, hardware stereo linking and live meters.
 - **Inputs:** Mic, Instrument, +4 dBu and -10 dBV line modes; preamp gain; offset-preserving gain grouping; 48 V phantom; Soft Limit; polarity.

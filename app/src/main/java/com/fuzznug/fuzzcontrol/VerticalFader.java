@@ -15,21 +15,21 @@ public final class VerticalFader extends View {
     private final IntConsumer preview, commit;
     public VerticalFader(Context context,int value,IntConsumer preview,IntConsumer commit) {
         super(context); this.value=value;this.preview=preview;this.commit=commit;
-        setFocusable(true);setContentDescription("Mixer level");
+        setLayerType(View.LAYER_TYPE_SOFTWARE,null);setFocusable(true);setContentDescription("Mixer level");
     }
     private float pad(){return 24*getResources().getDisplayMetrics().density;}
     @Override protected void onDraw(Canvas c) {
         super.onDraw(c);float p=pad(),x=getWidth()/2f,h=getHeight()-2*p;
-        paint.setStrokeWidth(5);paint.setColor(Color.rgb(58,69,88));c.drawLine(x,p,x,p+h,paint);
+        paint.clearShadowLayer();paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeWidth(8*getResources().getDisplayMetrics().density);paint.setColor(Color.rgb(58,69,88));c.drawLine(x,p,x,p+h,paint);
         float y=p+h*(1-value/54f);
-        paint.setColor(isEnabled()?Color.rgb(92,224,182):Color.GRAY);c.drawLine(x,y,x,p+h,paint);
-        paint.setStrokeWidth(1);paint.setTextSize(11*getResources().getDisplayMetrics().scaledDensity);
+        paint.setStrokeWidth(3*getResources().getDisplayMetrics().density);paint.setShadowLayer(12*getResources().getDisplayMetrics().density,0,0,0xff41e7be);paint.setColor(isEnabled()?Color.rgb(92,224,182):Color.GRAY);c.drawLine(x,y,x,p+h,paint);
+        paint.clearShadowLayer();paint.setStrokeWidth(1);paint.setTextSize(11*getResources().getDisplayMetrics().scaledDensity);
         for(int db:new int[]{6,0,-12,-24,-36,-48}) {
             float ty=p+h*(1-(db+48)/54f);paint.setColor(Color.rgb(145,157,180));
             c.drawLine(x-12,ty,x+12,ty,paint);c.drawText(String.valueOf(db),8,ty+4,paint);
         }
         paint.setColor(isEnabled()?Color.rgb(220,234,243):Color.GRAY);
-        c.drawRoundRect(x-22,y-10,x+22,y+10,5,5,paint);
+        float density=getResources().getDisplayMetrics().density;paint.setShadowLayer(8*density,0,0,isEnabled()?0xff55d9bf:Color.TRANSPARENT);c.drawRoundRect(x-18*density,y-8*density,x+18*density,y+8*density,5*density,5*density,paint);paint.clearShadowLayer();paint.setColor(0xff315668);c.drawLine(x-10*density,y,x+10*density,y,paint);
     }
     private void move(float y) {
         float span=Math.max(1,getHeight()-2*pad());

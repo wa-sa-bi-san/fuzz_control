@@ -51,6 +51,7 @@ public final class MainActivity extends Activity {
     private int[][] mix=new int[5][4],outputs=new int[2][5];
     private TextView status;
     private LinearLayout content;
+    private final List<Button> tabButtons=new ArrayList<>();
     private String report="";
     private final StringBuilder log=new StringBuilder();
     private AudioManager audio;
@@ -82,26 +83,39 @@ public final class MainActivity extends Activity {
     };
     @Override public void onCreate(Bundle state){
         super.onCreate(state);presets=new PresetStore(this);
-        LinearLayout root=column();root.setBackgroundColor(Color.rgb(14,19,28));root.setPadding(dp(14),dp(12),dp(14),dp(12));
+        LinearLayout root=column();root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xff101b29,0xff080d16,0xff121326}));root.setPadding(dp(14),dp(12),dp(14),dp(12));
         root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(dp(14)+i.getSystemWindowInsetLeft(),dp(8)+i.getSystemWindowInsetTop(),dp(14)+i.getSystemWindowInsetRight(),dp(8)+i.getSystemWindowInsetBottom());return i;});
-        LinearLayout heading=row();TextView title=text("FUZZ CONTROL",24);title.setTextColor(Color.rgb(97,226,183));heading.addView(title);root.addView(heading);heading=row();
+        LinearLayout heading=row();TextView title=text("FUZZ CONTROL",24);title.setTextColor(0xff82ffe0);title.setTypeface(Typeface.create("sans-serif-black",Typeface.NORMAL));title.setLetterSpacing(0.10f);title.setShadowLayer(dp(12),0,0,0x9961e2b7);heading.addView(title);root.addView(heading);TextView subtitle=text("DUET 3  /  MOBILE CONTROL",11);subtitle.setLetterSpacing(0.18f);subtitle.setTextColor(0xff8199b3);root.addView(subtitle);heading=row();
         button(heading,"Connect",this::connect,false).setLayoutParams(new LinearLayout.LayoutParams(0,dp(48),1));button(heading,"Read",()->transact("Refresh settings",s->{}),false).setLayoutParams(new LinearLayout.LayoutParams(0,dp(48),1));root.addView(heading);
-        status=text("Duet 3 • Connect to read settings. Hardware testing pending.",13);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);
+        status=text("Duet 3 • Connect to read settings. Hardware testing pending.",13);status.setTextColor(0xff91a8bd);status.setTextSize(12);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);
         LinearLayout tabs=row();String[] labels={"Mixer","Inputs","FX","Outputs","Presets","System","Devices"};
-        for(int i=0;i<labels.length;i++){final int index=i;Button b=button(tabs,labels[i],()->{tab=index;render();},false);b.setLayoutParams(new LinearLayout.LayoutParams(dp(92),dp(48)));}
-        HorizontalScrollView navigation=new HorizontalScrollView(this);navigation.addView(tabs);root.addView(navigation);ScrollView scroll=new ScrollView(this);content=column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+        for(int i=0;i<labels.length;i++){final int index=i;Button b=button(tabs,labels[i],()->{tab=index;render();},false);LinearLayout.LayoutParams navLp=new LinearLayout.LayoutParams(dp(88),dp(44));navLp.setMargins(0,dp(6),dp(6),dp(8));b.setLayoutParams(navLp);tabButtons.add(b);}
+        HorizontalScrollView navigation=new HorizontalScrollView(this);navigation.setHorizontalScrollBarEnabled(false);navigation.addView(tabs);root.addView(navigation);ScrollView scroll=new ScrollView(this);scroll.setClipToPadding(false);scroll.setPadding(0,dp(8),0,dp(12));content=column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
         render();refreshInventory();
     }
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
-    private TextView text(String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(Color.rgb(225,233,244));v.setPadding(dp(4),dp(6),dp(4),dp(6));return v;}
-    private Button button(LinearLayout parent,String label,Runnable action,boolean hardware){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(13);b.setMinHeight(dp(48));b.setOnClickListener(v->action.run());if(hardware)b.setEnabled(ready&&!busy);parent.addView(b);return b;}
-    private void panel(LinearLayout l,int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(12));l.setBackground(d);l.setPadding(dp(10),dp(10),dp(10),dp(10));}
+    private GradientDrawable surface(int top,int bottom,int border,int radius){
+        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});d.setCornerRadius(dp(radius));d.setStroke(dp(1),border);return d;
+    }
+    private TextView text(String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(size>=18?0xffedf7ff:0xffb2c3d5);v.setFontFeatureSettings("tnum");v.setPadding(dp(4),dp(7),dp(4),dp(7));if(size>=16)v.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));if(size==18){v.setTextSize(14);v.setLetterSpacing(0.10f);v.setTextColor(0xff7ce8d2);}return v;}
+    private void buttonStyle(Button b,boolean accent){
+        android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},surface(0xff18212e,0xff141b27,0xff263243,13));
+        states.addState(new int[]{android.R.attr.state_pressed},surface(0xff285c62,0xff203f52,0xff82ffe0,13));
+        states.addState(new int[]{android.R.attr.state_selected},surface(0xff24574f,0xff153b40,0xff63e5cb,13));
+        states.addState(new int[]{},surface(accent?0xff22544f:0xff253245,accent?0xff16383d:0xff192433,accent?0xff4bbda9:0xff3a4a62,13));
+        b.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x4067f5d0),states,null));
+        b.setTextColor(new android.content.res.ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled},new int[]{}},new int[]{0xff63758a,accent?0xffa3ffe8:0xffdfebfa}));
+        b.setElevation(dp(accent?4:2));b.setPadding(dp(12),dp(8),dp(12),dp(8));
+    }
+    private Button button(LinearLayout parent,String label,Runnable action,boolean hardware){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(13);b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setMinHeight(dp(48));b.setMinimumWidth(0);b.setOnClickListener(v->action.run());if(hardware)b.setEnabled(ready&&!busy);boolean accent=label.equals("Connect")||label.startsWith("Save ")||label.startsWith("Recall ");buttonStyle(b,accent);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(parent.getOrientation()==LinearLayout.VERTICAL?-1:-2,-2);lp.setMargins(dp(3),dp(5),dp(3),dp(5));parent.addView(b,lp);return b;}
+    private void panel(LinearLayout l,int color){boolean master=color==Color.rgb(28,47,51);l.setBackground(surface(master?0xff203f43:0xff202d40,master?0xff11282f:0xff141e2e,master?0xff438e85:0xff34475e,20));l.setElevation(dp(5));l.setPadding(dp(12),dp(12),dp(12),dp(14));}
     private static String db(int wire){int n=Duet3MixerProtocol.decodeDb(wire);return (n>0?"+":"")+n+" dB";}
     private static String pan(int wire){return wire==64?"Center":(wire<64?"L ":"R ")+Math.round(Math.abs(wire-64)*100f/64)+"%";}
     private void render(){
-        if(content==null)return;content.removeAllViews();meterDisplays.clear();
+        if(content==null)return;for(int i=0;i<tabButtons.size();i++){Button b=tabButtons.get(i);b.setSelected(i==tab);b.setTextColor(i==tab?0xffa3ffe8:0xff92a8c2);}content.removeAllViews();meterDisplays.clear();
         switch(tab){case 0:renderMixer();break;case 1:renderInputs();break;case 2:renderFx();break;case 3:renderOutputs();break;case 4:renderPresets();break;case 5:renderSystem();break;default:renderDevices();}
         if(meterFailed)for(MeterDisplay display:meterDisplays)display.unavailable();
     }
@@ -117,7 +131,7 @@ public final class MainActivity extends Activity {
             TextView level=text(ready?db(mix[i][0]):"Not read",22);level.setGravity(Gravity.CENTER);card.addView(level);
             if(i<4){
                 TextView p=text(ready?pan(mix[i][1]):"Pan",13);card.addView(p);
-                SeekBar panBar=new SeekBar(this);panBar.setMax(128);panBar.setProgress(ready?mix[i][1]:64);panBar.setContentDescription(Duet3MixerProtocol.CHANNELS[i]+" pan");panBar.setEnabled(ready&&!busy&&!(ch<2&&stereo==1));
+                SeekBar panBar=new SeekBar(this);panBar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xff859aff));panBar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xffb8c5ff));panBar.setMax(128);panBar.setProgress(ready?mix[i][1]:64);panBar.setContentDescription(Duet3MixerProtocol.CHANNELS[i]+" pan");panBar.setEnabled(ready&&!busy&&!(ch<2&&stereo==1));
                 panBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
                     public void onProgressChanged(SeekBar b,int v,boolean user){if(user)p.setText(pan(v)+" • pending");}
                     public void onStartTrackingTouch(SeekBar b){}
@@ -127,8 +141,8 @@ public final class MainActivity extends Activity {
             VerticalFader fader=new VerticalFader(this,ready?mix[i][0]:0,v->level.setText(db(v)+" • pending"),v->transact("Level "+Duet3MixerProtocol.CHANNELS[ch]+" to "+db(v),s->s.controller.setMixer(ch,Duet3MixerProtocol.LEVEL,v)));
             fader.setContentDescription(Duet3MixerProtocol.CHANNELS[i]+" level");fader.setEnabled(ready&&!busy);card.addView(fader,new LinearLayout.LayoutParams(-1,dp(235)));
             button(card,"Unity · 0 dB",()->transact("Unity "+Duet3MixerProtocol.CHANNELS[ch],s->s.controller.setMixer(ch,Duet3MixerProtocol.LEVEL,48)),true);
-            Button mute=button(card,ready&&mix[i][2]==1?"MUTE ON":"Mute",()->transact("Toggle mute "+Duet3MixerProtocol.CHANNELS[ch],s->{if(ch==4)s.mixer.toggle(0,Duet3MixerProtocol.MASTER_MUTE);else s.controller.toggleMixer(ch,Duet3MixerProtocol.MUTE);}),true);mute.setSelected(ready&&mix[i][2]==1);if(mute.isSelected())mute.setTextColor(Color.rgb(194,54,43));
-            if(i<4){Button solo=button(card,ready&&mix[i][3]==1?"SOLO ON":"Solo",()->transact("Toggle solo "+Duet3MixerProtocol.CHANNELS[ch],s->s.controller.toggleMixer(ch,Duet3MixerProtocol.SOLO)),true);if(ready&&mix[i][3]==1)solo.setTextColor(Color.rgb(161,100,0));}
+            Button mute=button(card,ready&&mix[i][2]==1?"MUTE ON":"Mute",()->transact("Toggle mute "+Duet3MixerProtocol.CHANNELS[ch],s->{if(ch==4)s.mixer.toggle(0,Duet3MixerProtocol.MASTER_MUTE);else s.controller.toggleMixer(ch,Duet3MixerProtocol.MUTE);}),true);mute.setSelected(ready&&mix[i][2]==1);if(mute.isSelected())mute.setTextColor(0xffffa69d);
+            if(i<4){Button solo=button(card,ready&&mix[i][3]==1?"SOLO ON":"Solo",()->transact("Toggle solo "+Duet3MixerProtocol.CHANNELS[ch],s->s.controller.toggleMixer(ch,Duet3MixerProtocol.SOLO)),true);if(ready&&mix[i][3]==1)solo.setTextColor(0xffffd487);}
         }
         button(content,"Analog stereo link: "+(ready?(stereo==1?"on":"off"):"not read"),this::chooseStereo,true);
         content.addView(text("Linked analog inputs share level, mute/solo and stereo FX. Their mixer pans are left/right. Input gain grouping preserves existing offsets.",12));
@@ -136,7 +150,7 @@ public final class MainActivity extends Activity {
     private interface NumberAction { void apply(float value); }
     private void slider(LinearLayout parent,String name,float value,float min,float max,float step,boolean enabled,NumberAction action){
         TextView caption=text(name+": "+String.format(Locale.ROOT,"%.2f",value),15);parent.addView(caption);
-        SeekBar bar=new SeekBar(this);bar.setMax(Math.round((max-min)/step));bar.setProgress(Math.round((value-min)/step));bar.setEnabled(enabled&&!busy);bar.setContentDescription(name);
+        SeekBar bar=new SeekBar(this);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xff63e5cb));bar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xff9affdf));bar.setMax(Math.round((max-min)/step));bar.setProgress(Math.round((value-min)/step));bar.setEnabled(enabled&&!busy);bar.setContentDescription(name);
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onProgressChanged(SeekBar b,int n,boolean user){if(user)caption.setText(name+": "+String.format(Locale.ROOT,"%.2f",min+n*step)+" • pending");}
             public void onStartTrackingTouch(SeekBar b){}
@@ -202,7 +216,7 @@ public final class MainActivity extends Activity {
         content.addView(text("Choose the source separately for each physical output. Output numbering needs confirmation on your Duet. Changing a source can change what you hear immediately.",13));
         for(int i=0;i<2;i++){
             final int out=i;LinearLayout card=column();panel(card,Color.rgb(26,34,48));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(8),0,dp(8));content.addView(card,lp);
-            card.addView(text("Output "+(i+1)+(ready?" · -"+outputs[i][0]+" dB":" · not read"),20));
+            card.addView(text("Output "+(i+1)+(ready?" · "+(-outputs[i][0])+" dB":" · not read"),20));
             new MeterDisplay(card,Duet3MeterPacket.OUTPUT_WORDS[i]);
             if(ready&&outputs[i][0]<=64)slider(card,"Output level (dB)",-outputs[i][0],-64,0,1,true,v->transact("Output level",s->{if(s.protocol.read(out,Duet3Protocol.LEVEL)>64)throw new IOException("Output is below the adjustable range; reread device");s.protocol.writeAndVerify(out,Duet3Protocol.LEVEL,-Math.round(v));}));
             button(card,"Source: "+(ready?Duet3MixerProtocol.ROUTES[outputs[i][3]]:"unknown"),()->chooseRoute(out),true);
@@ -274,9 +288,9 @@ public final class MainActivity extends Activity {
             String packet=Arrays.toString(session.readMeterPacket());
             handler.post(()->{if(!isDestroyed())log.append("Raw meter words (unmapped): ").append(packet).append('\n');});
         }),true);
-        button(content,"Share diagnostic report",()->{Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT,"Fuzz Control 0.5.0 diagnostics").putExtra(Intent.EXTRA_TEXT,report+"\nCONTROL LOG\n"+log);startActivity(Intent.createChooser(send,"Share report"));},false);
+        button(content,"Share diagnostic report",()->{Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT,"Fuzz Control 0.5.1 diagnostics").putExtra(Intent.EXTRA_TEXT,report+"\nCONTROL LOG\n"+log);startActivity(Intent.createChooser(send,"Share report"));},false);
         TextView data=text(report,12);data.setTypeface(Typeface.MONOSPACE);data.setTextIsSelectable(true);content.addView(data);
-        content.addView(text("Experimental 0.5.0. USB controls are independently implemented. No Apogee software is bundled. No audio recording or network access.",12));
+        content.addView(text("Experimental 0.5.1. USB controls are independently implemented. No Apogee software is bundled. No audio recording or network access.",12));
     }
     private void connect(){
         if(busy)return;List<UsbDevice> devices=DeviceInventory.usbDevices(this);devices.removeIf(d->!Duet3Usb.matches(d));

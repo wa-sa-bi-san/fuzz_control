@@ -1,0 +1,11 @@
+<resources>
+    <style name="FuzzTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#67F5D0</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#0B121E</item>
+        <item name="android:navigationBarColor">#0B121E</item>
+        <item name="android:windowBackground">#0B121E</item>
+        <item name="android:colorControlHighlight">#4067F5D0</item>
+    </style>
+</resources>

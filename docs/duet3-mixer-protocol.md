@@ -1,5 +1,7 @@
 # Duet 3 mixer: independently recovered protocol
 
+**0.5.0 update:** Stereo linking, input controls, hardware ECS DSP, presets and system controls are now implemented. See [extended evidence](duet3-input-dsp-protocol.md). The gaps below describe the historical 0.4.0 build. Physical validation is still pending.
+
 Version 0.4.0 implements hardware mixer levels, pan, mute, solo, master level/mute independent output source selection and recording-source / loopback selection. Static evidence is from the same user-provided Control 2 DSP 1.21.55 installer as the output investigation. None of the proprietary binaries or disassembly dumps are committed. All addresses below are virtual addresses in the x86_64 slice.
 
 Transport: request type 0xc0 for read, 0x40 for write, wValue 0, length 1, wIndex as below. Both directions use the same bRequest. All writes require a successful preflight read and exact matching readback. No retries, no initialization writes, no audio interface claims.

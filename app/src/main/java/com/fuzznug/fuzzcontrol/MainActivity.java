@@ -84,8 +84,8 @@ public final class MainActivity extends Activity {
         super.onCreate(state);presets=new PresetStore(this);
         LinearLayout root=column();root.setBackgroundColor(Color.rgb(14,19,28));root.setPadding(dp(14),dp(12),dp(14),dp(12));
         root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(dp(14)+i.getSystemWindowInsetLeft(),dp(8)+i.getSystemWindowInsetTop(),dp(14)+i.getSystemWindowInsetRight(),dp(8)+i.getSystemWindowInsetBottom());return i;});
-        LinearLayout heading=row();TextView title=text("FUZZ CONTROL",24);title.setTextColor(Color.rgb(97,226,183));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        button(heading,"Connect",this::connect,false);button(heading,"Read",()->transact("Refresh settings",s->{}),false);root.addView(heading);
+        LinearLayout heading=row();TextView title=text("FUZZ CONTROL",24);title.setTextColor(Color.rgb(97,226,183));heading.addView(title);root.addView(heading);heading=row();
+        button(heading,"Connect",this::connect,false).setLayoutParams(new LinearLayout.LayoutParams(0,dp(48),1));button(heading,"Read",()->transact("Refresh settings",s->{}),false).setLayoutParams(new LinearLayout.LayoutParams(0,dp(48),1));root.addView(heading);
         status=text("Duet 3 • Connect to read settings. Hardware testing pending.",13);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);
         LinearLayout tabs=row();String[] labels={"Mixer","Inputs","FX","Outputs","Presets","System","Devices"};
         for(int i=0;i<labels.length;i++){final int index=i;Button b=button(tabs,labels[i],()->{tab=index;render();},false);b.setLayoutParams(new LinearLayout.LayoutParams(dp(92),dp(48)));}
@@ -174,7 +174,7 @@ public final class MainActivity extends Activity {
         if(inputs!=null)button(content,"ECS processing: "+(inputs[ch][7]==0?"on":"bypassed"),()->transact("FX bypass",x->x.controller.setFxBypass(ch,1-x.input.read(ch,Duet3InputProtocol.FX_BYPASS))),true);
         final float[] values=effects[ch];
         LinearLayout reductionCard=card("Gain reduction");new MeterDisplay(reductionCard,new int[]{6+(stereo==1?0:ch)},true);
-        LinearLayout switches=card("Signal path");String[] toggles={"EQ bypass","Compressor bypass","High-pass to sidechain","Mid bandwidth setting","EQ before compressor"};
+        LinearLayout switches=card("Signal path");String[] toggles={"EQ bypass","Compressor bypass","High-pass to sidechain","Mid peak wide bandwidth","EQ before compressor"};
         for(int p=0;p<5;p++){final int parameter=p;button(switches,toggles[p]+": "+(values[p]==1?"on":"off"),()->transact(toggles[parameter],x->{int channel=x.controller.dspChannel(ch);float old=x.dsp.read(channel)[parameter];x.dsp.write(channel,parameter,1-old);}),true);}
         button(switches,"Ratio: "+Duet3DspProtocol.format(5,values[5]),()->new AlertDialog.Builder(this).setTitle("Compression ratio").setItems(new String[]{"3:1","5:1","10:1"},(d,n)->transact("Compressor ratio",x->x.controller.setDsp(ch,5,n))).show(),true);
         LinearLayout eq=card("Equalizer"),comp=card("Compression"),output=card("Drive & output");
@@ -205,7 +205,7 @@ public final class MainActivity extends Activity {
             card.addView(text("Output "+(i+1)+(ready?" · -"+outputs[i][0]+" dB":" · not read"),20));
             new MeterDisplay(card,Duet3MeterPacket.OUTPUT_WORDS[i]);
             button(card,"Source: "+(ready?Duet3MixerProtocol.ROUTES[outputs[i][3]]:"unknown"),()->chooseRoute(out),true);
-            LinearLayout levels=row();button(levels,"Quieter · -1 dB",()->transact("Output "+(out+1)+" quieter",s->s.protocol.stepLevel(out,-1)),true);button(levels,"Louder · +1 dB",()->transact("Output "+(out+1)+" louder",s->s.protocol.stepLevel(out,1)),true);card.addView(levels);
+            LinearLayout levels=column();button(levels,"Quieter · -1 dB",()->transact("Output "+(out+1)+" quieter",s->s.protocol.stepLevel(out,-1)),true);button(levels,"Louder · +1 dB",()->transact("Output "+(out+1)+" louder",s->s.protocol.stepLevel(out,1)),true);card.addView(levels);
             button(card,"Mute: "+(ready?(outputs[i][4]==1?"on":"off"):"?"),()->transact("Output mute "+out,s->s.protocol.toggle(out,Duet3Protocol.MUTE)),true);
             LinearLayout switches=row();button(switches,"Dim: "+(ready?(outputs[i][1]==1?"on":"off"):"?"),()->transact("Output dim "+out,s->s.protocol.toggle(out,Duet3Protocol.DIM)),true);button(switches,"Mono: "+(ready?(outputs[i][2]==1?"on":"off"):"?"),()->transact("Output mono "+out,s->s.protocol.toggle(out,Duet3Protocol.MONO)),true);card.addView(switches);
         }
@@ -302,7 +302,7 @@ public final class MainActivity extends Activity {
                 message=label+" • device readback received. Settings refreshed.";ok=true;
             }catch(IOException|RuntimeException e){message=label+" failed: "+e.getMessage()+". Tap Read to recover; a write may already have applied.";}
             final int rec=nextRecording,link=nextStereo;final int[][] in=nextInputs;final float[][] fx=nextEffects;final int[] sys=nextSystem;final String ie=inError,fe=fxError,se=sysError;final int[][] m=nextMix,o=nextOutputs;final String result=message;final boolean success=ok;
-            handler.post(()->{busy=false;if(isDestroyed())return;log.append(result).append('\n');if(success)log.append("Mixer ").append(Arrays.deepToString(m)).append("\nOutputs ").append(Arrays.deepToString(o)).append("\nRecording source ").append(rec).append('\n');if(log.length()>20000)log.delete(0,log.length()-20000);
+            handler.post(()->{busy=false;if(isDestroyed())return;log.append(result).append('\n');if(success)log.append("Mixer ").append(Arrays.deepToString(m)).append("\nOutputs ").append(Arrays.deepToString(o)).append("\nRecording source ").append(rec).append("\nInputs ").append(Arrays.deepToString(in)).append("\nDSP ").append(Arrays.deepToString(fx)).append("\nSystem ").append(Arrays.toString(sys)).append("\nOptional reads: ").append(ie).append(" / ").append(fe).append(" / ").append(se).append('\n');if(log.length()>20000)log.delete(0,log.length()-20000);
                 if(!active||token!=generation)return;ready=success;if(success){mix=m;outputs=o;recordingSource=rec;stereo=link;inputs=in;effects=fx;systemSettings=sys;inputError=ie;dspError=fe;systemError=se;meterFailed=false;}status.setText(result);render();scheduleMeters();});
         });
     }
